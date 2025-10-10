@@ -2,9 +2,10 @@
 A chess engine built from scratch.
 
 # Important references 
-PGN notation: https://en.wikipedia.org/wiki/Portable_Game_Notation
-PGN implementation in latex: https://www.overleaf.com/learn/latex/Chess_notation
-FEN notation to represent a board: https://www.chess.com/terms/fen-chess
+PGN notation: https://en.wikipedia.org/wiki/Portable_Game_Notation <br>
+PGN implementation in latex: https://www.overleaf.com/learn/latex/Chess_notation <br>
+FEN notation to represent a board: https://www.chess.com/terms/fen-chess <br>
+Chess board asset: https://sharechess.github.io/
 
 # Project structure 
 chess_project/
