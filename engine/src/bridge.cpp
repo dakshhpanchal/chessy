@@ -9,4 +9,9 @@ extern "C" {
 	char* return_move(char* move){
 		return engine::Core::returnMove(move);
 	}
+
+	int eval(char* fen){
+		engine::Core c;
+		return c.parseFEN(fen);
+	}
 }
