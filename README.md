@@ -7,6 +7,9 @@ PGN implementation in latex: https://www.overleaf.com/learn/latex/Chess_notation
 FEN notation to represent a board: https://www.chess.com/terms/fen-chess <br>
 Chess board asset: https://sharechess.github.io/ <br>
 
+[!WARNING]
+YOU MAY NEED TO INSTALL SHARED FILE PRODUCED BY THE ENGINE ACCORDING TO YOUR RESPECTIVE PLATFORM AS OF NOW
+
 # Project structure 
 chess_project/
 ├── engine/             # C++ core logic
@@ -22,7 +25,6 @@ chess_project/
 └── README.md
 
 # Requirements
-
 CMake ≥ 3.16
 GCC or Clang (Linux/macOS)
 make or ninja
