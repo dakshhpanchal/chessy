@@ -1,61 +1,197 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const ChessApp());
-}
+void main() => runApp(const MyApp());
 
-class ChessApp extends StatelessWidget {
-  const ChessApp({super.key});
-
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,    
-      title: 'Flutter Chess',
-      theme: ThemeData(
-        primarySwatch: Colors.blueGrey,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: const MyHomePage(),
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: ChessHomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
-
+class ChessHomePage extends StatefulWidget {
+  const ChessHomePage({super.key});
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<ChessHomePage> createState() => _ChessHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  // We will eventually get this from the C++ engine
-  final String initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+class _ChessHomePageState extends State<ChessHomePage> {
+  // Board: [row][col], 0..7
+  late List<List<String>> board;
+
+  // selected square as row,col or null
+  Pair<int, int>? selected;
+
+  @override
+  void initState() {
+    super.initState();
+    board = _initialBoard();
+    // precache assets to avoid first-draw jank
+    _precachePieces();
+  }
+
+  List<List<String>> _initialBoard() {
+    return [
+      ['br','bn','bb','bq','bk','bb','bn','br'],
+      ['bp','bp','bp','bp','bp','bp','bp','bp'],
+      ['','','','','','','',''],
+      ['','','','','','','',''],
+      ['','','','','','','',''],
+      ['','','','','','','',''],
+      ['wp','wp','wp','wp','wp','wp','wp','wp'],
+      ['wr','wn','wb','wq','wk','wb','wn','wr'],
+    ];
+  }
+
+  Future<void> _precachePieces() async {
+    final names = ['wp','wn','wb','wr','wq','wk','bp','bn','bb','br','bq','bk'];
+    for (final n in names) {
+      final provider = AssetImage('assets/pieces/$n.png');
+      // ignore: use_build_context_synchronously
+      await precacheImage(provider, context);
+    }
+  }
+
+  void _onTapSquare(int row, int col) {
+    setState(() {
+      final piece = board[row][col];
+      if (selected == null) {
+        // select only if there's a piece
+        if (piece != '') selected = Pair(row, col);
+      } else {
+        // apply move (no legality check here)
+        final fromR = selected!.a;
+        final fromC = selected!.b;
+        if (fromR == row && fromC == col) {
+          // unselect
+          selected = null;
+        } else {
+          board[row][col] = board[fromR][fromC];
+          board[fromR][fromC] = '';
+          selected = null;
+        }
+      }
+    });
+  }
+
+  String boardToFen() {
+    // Simple FEN generator (no castling/en passant/halfmove/fullmove)
+    final rows = <String>[];
+    for (var r = 0; r < 8; r++) {
+      var emptyCount = 0;
+      var rowStr = '';
+      for (var c = 0; c < 8; c++) {
+        final p = board[r][c];
+        if (p == '') {
+          emptyCount++;
+        } else {
+          if (emptyCount > 0) {
+            rowStr += '$emptyCount';
+            emptyCount = 0;
+          }
+          final char = _pieceCodeToFenChar(p);
+          rowStr += char;
+        }
+      }
+      if (emptyCount > 0) rowStr += '$emptyCount';
+      rows.add(rowStr);
+    }
+    return rows.join('/') + ' w - - 0 1';
+  }
+
+  String _pieceCodeToFenChar(String code) {
+    if (code.isEmpty) return '';
+    final color = code[0]; // 'w' or 'b'
+    final t = code[1]; // p,n,b,r,q,k
+    final map = {
+      'p': 'p',
+      'n': 'n',
+      'b': 'b',
+      'r': 'r',
+      'q': 'q',
+      'k': 'k',
+    };
+    final ch = map[t] ?? '?';
+    return color == 'w' ? ch.toUpperCase() : ch;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chess UI'),
-        centerTitle: true,
+        title: const Text('Flutter Chessboard — Prototype'),
+        actions: [
+          IconButton(
+            tooltip: 'Print FEN',
+            onPressed: () {
+              final fen = boardToFen();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('FEN: $fen')),
+              );
+            },
+            icon: const Icon(Icons.copy_all),
+          ),
+          IconButton(
+            tooltip: 'Reset Board',
+            onPressed: () {
+              setState(() {
+                board = _initialBoard();
+                selected = null;
+              });
+            },
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: Center(
-        child: AspectRatio(
-          aspectRatio: 1.0,
-          child: Container(
-            margin: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black, width: 2.0),
-              borderRadius: BorderRadius.circular(8.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(4, 4),
-                )
-              ],
-            ),
-            child: ChessBoard(fen: initialFen),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: AspectRatio(
+            aspectRatio: 1.0,
+            child: LayoutBuilder(builder: (context, constraints) {
+              final squareSize = constraints.maxWidth / 8;
+              return GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 8,
+                ),
+                itemCount: 64,
+                itemBuilder: (context, index) {
+                  final row = index ~/ 8;
+                  final col = index % 8;
+                  final isLight = (row + col) % 2 == 0;
+                  final piece = board[row][col];
+
+                  final isSelected = selected != null &&
+                      selected!.a == row &&
+                      selected!.b == col;
+
+                  return GestureDetector(
+                    onTap: () => _onTapSquare(row, col),
+                    child: Container(
+                      color: isSelected
+                          ? Colors.green[400]
+                          : (isLight ? Colors.brown[100] : Colors.brown[500]),
+                      child: Center(
+                        child: piece.isNotEmpty
+                            ? Image.asset(
+                                'assets/pieces/$piece.png',
+                                width: squareSize * 0.85,
+                                height: squareSize * 0.85,
+                                fit: BoxFit.contain,
+                              )
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
           ),
         ),
       ),
@@ -63,66 +199,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class ChessBoard extends StatelessWidget {
-  final String fen;
-  const ChessBoard({required this.fen, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final lightSquareColor = Colors.grey[300]!;
-    final darkSquareColor = Colors.brown[600]!;
-
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 8,
-      ),
-      itemBuilder: (context, index) {
-        final row = index ~/ 8;
-        final col = index % 8;
-        final isLightSquare = (row + col) % 2 == 0;
-
-        return Container(
-          color: isLightSquare ? lightSquareColor : darkSquareColor,
-          child: Center(
-            // We'll render pieces here based on the FEN string later
-            child: Text(
-              _getPieceForSquare(row, col),
-              style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
-            ),
-          ),
-        );
-      },
-      itemCount: 64,
-      physics: const NeverScrollableScrollPhysics(),
-    );
-  }
-
-  // A very basic FEN parser to place pieces.
-  // This should be expanded for a full implementation.
-  String _getPieceForSquare(int row, int col) {
-    final fenParts = fen.split(' ');
-    final boardState = fenParts[0].split('/');
-    final fenRow = boardState[row];
-    int currentPos = 0;
-    for (int i = 0; i < fenRow.length; i++) {
-      final char = fenRow[i];
-      final isDigit = int.tryParse(char);
-      if (isDigit != null) {
-        currentPos += isDigit;
-      } else {
-        if (currentPos == col) {
-          return _unicodePieces[char] ?? '';
-        }
-        currentPos++;
-      }
-    }
-    return '';
-  }
-
-  static const Map<String, String> _unicodePieces = {
-    'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
-    'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙',
-  };
+// small utility Pair
+class Pair<A, B> {
+  final A a;
+  final B b;
+  Pair(this.a, this.b);
 }
-
 
