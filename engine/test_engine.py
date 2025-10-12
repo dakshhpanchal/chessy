@@ -6,12 +6,6 @@ except OSError as e:
     print(f"Error loading library: {e}")
     exit()
 
-my_library.add_numbers.argtypes = [c_int, c_int]
-my_library.add_numbers.restype = c_int
-
-my_library.return_move.argtypes = [c_char_p]
-my_library.return_move.restype = c_char_p
-
 my_library.eval.argtypes = [c_char_p]
 my_library.eval.restype = c_int
 

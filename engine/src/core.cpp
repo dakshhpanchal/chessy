@@ -3,31 +3,21 @@
 #include <cctype>
 
 namespace engine {
-    int Core::addNumbers(int a, int b){
-        return a + b;	
-    }
-
-    char* Core::returnMove(char* move){
-        return "e4";	
-    }
-
-    int Core::parseFEN(const std::string& fen){
+    int Core::evaluatePosition(const std::string& fen){
         int score = 0;
         int boardIndex = 0;
         
-        // Parse the board position part of FEN (before the first space)
+        // we are currently parsing only chess pieces
         for (size_t i = 0; i < fen.length() && fen[i] != ' '; i++) {
             char c = fen[i];
             
             if (c == '/') {
-                continue; // Skip rank separator
+                continue; // rank seperator
             }
             else if (std::isdigit(c)) {
-                // Skip empty squares
-                boardIndex += (c - '0');
+                boardIndex += (c - '0'); // pwns
             }
             else {
-                // It's a piece - add its value and positional score
                 auto it = pieceValue.find(c);
                 if (it != pieceValue.end()) {
                     score += it->second;
@@ -36,8 +26,14 @@ namespace engine {
                 boardIndex++;
             }
         }
+
         
-        return score;
+        return Core::normalize(score);
+    }
+
+    int Core::normalize(int score) {
+        double normalized = std::tanh(score / 1000.0);
+        return static_cast<int>(normalized * 1000);
     }
 
     int Core::getPieceSquareValue(char piece, int square) {
@@ -56,13 +52,5 @@ namespace engine {
             case 'K': return pstKing[pstIndex];
             default: return 0;
         }
-    }
-
-    int Core::evaluatePosition(const std::string& fen) {
-        int materialScore = parseFEN(fen);
-        
-	//more eval here
-        
-        return materialScore;
     }
 } // engine

@@ -2,6 +2,7 @@
 #include <string>
 #include <unordered_map>
 #include <array>
+#include <math.h>
 
 namespace engine {
     class Core {
@@ -10,7 +11,7 @@ namespace engine {
         static char* returnMove(char* move);
         
         // Evaluation methods
-        int parseFEN(const std::string& fen);
+        int normalize(int score);
         int evaluatePosition(const std::string& fen);
         
     private:
