@@ -5,6 +5,12 @@ import 'package:ffi/ffi.dart';
 
 void main() => runApp(const MyApp());
 
+class Pair<A, B> {
+  final A a;
+  final B b;
+  Pair(this.a, this.b);
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
@@ -55,7 +61,9 @@ class _ChessHomePageState extends State<ChessHomePage> {
       }
 
       evaluatePosition = dylib
-          .lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Pointer<ffi.Char>)>>('eval')
+          .lookup<
+            ffi.NativeFunction<ffi.Int32 Function(ffi.Pointer<ffi.Char>)>
+          >('eval')
           .asFunction<int Function(ffi.Pointer<ffi.Char>)>();
     } catch (e) {
       debugPrint('Failed to load chess engine: $e');
@@ -64,19 +72,32 @@ class _ChessHomePageState extends State<ChessHomePage> {
 
   List<List<String>> _initialBoard() {
     return [
-      ['br','bn','bb','bq','bk','bb','bn','br'],
-      ['bp','bp','bp','bp','bp','bp','bp','bp'],
-      ['','','','','','','',''],
-      ['','','','','','','',''],
-      ['','','','','','','',''],
-      ['','','','','','','',''],
-      ['wp','wp','wp','wp','wp','wp','wp','wp'],
-      ['wr','wn','wb','wq','wk','wb','wn','wr'],
+      ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+      ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+      ['', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', ''],
+      ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+      ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr'],
     ];
   }
 
   Future<void> _precachePieces() async {
-    final names = ['wp','wn','wb','wr','wq','wk','bp','bn','bb','br','bq','bk'];
+    final names = [
+      'wp',
+      'wn',
+      'wb',
+      'wr',
+      'wq',
+      'wk',
+      'bp',
+      'bn',
+      'bb',
+      'br',
+      'bq',
+      'bk',
+    ];
     for (final n in names) {
       final provider = AssetImage('assets/pieces/$n.png');
       // ignore: use_build_context_synchronously
@@ -84,33 +105,153 @@ class _ChessHomePageState extends State<ChessHomePage> {
     }
   }
 
+  bool _isValidPawnMove(int fromR, int fromC, int toR, int toC) {
+    final piece = board[fromR][fromC];
+    final isWhite = piece.startsWith('w');
+    final direction = isWhite ? -1 : 1;
+    final startRow = isWhite ? 6 : 1;
+    final targetPiece = board[toR][toC];
+
+    if (fromC == toC) {
+      //one square forward
+      if (toR == fromR + direction && targetPiece.isEmpty) {
+        return true;
+      }
+
+      // two square forward
+      if (fromR == startRow &&
+          toR == fromR + 2 * direction &&
+          targetPiece.isEmpty &&
+          board[fromR + direction][fromC].isEmpty) {
+        return true;
+      }
+    }
+    if ((toC == (fromC + 1) || toC == (fromC - 1)) &&
+        toR == fromR + direction &&
+        targetPiece.isNotEmpty) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _isValidKnightMove(int fromR, int fromC, int toR, int toC) {
+    final rowDiff = (fromR - toR).abs();
+    final colDiff = (fromC - toC).abs();
+
+    return (colDiff == 2 && rowDiff == 1) || (colDiff == 1 && rowDiff == 2);
+  }
+
+  bool _isValidBishopMove(int fromR, int fromC, int toR, int toC) {
+    final rowDiff = (fromR - toR).abs();
+    final colDiff = (fromC - toC).abs();
+
+    if (rowDiff != colDiff) {
+      return false;
+    }
+
+    final rowStep = toR > fromR ? 1 : -1;
+    final colStep = toC > fromC ? 1 : -1;
+
+    var currentR = fromR + rowStep;
+    var currentC = fromC + colStep;
+
+    while (currentR != toR || currentC != toC) {
+      if (board[currentR][currentC].isNotEmpty) {
+        return false;
+      }
+      currentR += rowStep;
+      currentC += colStep;
+    }
+
+    return true;
+  }
+
+  bool _isValidRookMove(int fromR, int fromC, int toR, int toC) {
+    if (toR != fromR && toC != fromC) {
+      return false;
+    }
+
+    if (fromR == toR) {
+      final step = toC > fromC ? 1 : -1;
+      var currentC = fromC + step;
+      while (currentC != toC) {
+        if (board[fromR][currentC].isNotEmpty) {
+          return false;
+        }
+        currentC += step;
+      }
+    } else if (fromC == toC) {
+      final step = toR > fromR ? 1 : -1;
+      var currentR = fromR + step;
+      while (currentR != toR) {
+        if (board[currentR][fromC].isNotEmpty) {
+          return false;
+        }
+        currentR += step;
+      }
+    }
+    return true;
+  }
+
+  bool _isValidQueenMove(int fromR, int fromC, int toR, int toC) {
+    return _isValidBishopMove(fromR, fromC, toR, toC) ||
+        _isValidRookMove(fromR, fromC, toR, toC);
+  }
+
+  bool _isValidKingMove(int fromR, int fromC, int toR, int toC) {
+    final rowDiff = (toR - fromR).abs();
+    final colDiff = (toC - fromC).abs();
+
+    if (rowDiff <= 1 && colDiff <= 1) {
+      return true;
+    }
+    return false;
+  }
+
   bool _isValidMove(int fromR, int fromC, int toR, int toC) {
     final piece = board[fromR][fromC];
     if (piece.isEmpty) return false;
-    
+
     if (isWhiteTurn && !piece.startsWith('w')) return false;
     if (!isWhiteTurn && !piece.startsWith('b')) return false;
-    
+
     if (fromR == toR && fromC == toC) return false;
-    
+
     final targetPiece = board[toR][toC];
     if (targetPiece.isNotEmpty) {
       if (piece.startsWith('w') && targetPiece.startsWith('w')) return false;
       if (piece.startsWith('b') && targetPiece.startsWith('b')) return false;
     }
-    
-    return true;
+
+    final pieceType = piece[1];
+    switch (pieceType) {
+      case 'p':
+        return _isValidPawnMove(fromR, fromC, toR, toC);
+      case 'n':
+        return _isValidKnightMove(fromR, fromC, toR, toC);
+      case 'b':
+        return _isValidBishopMove(fromR, fromC, toR, toC);
+      case 'r':
+        return _isValidRookMove(fromR, fromC, toR, toC);
+      case 'q':
+        return _isValidQueenMove(fromR, fromC, toR, toC);
+      case 'k':
+        return _isValidKingMove(fromR, fromC, toR, toC);
+      default:
+        return false;
+    }
   }
 
   void _onTapSquare(int row, int col) {
     if (isEngineThinking) return;
-    
+
     setState(() {
       final piece = board[row][col];
-      
+
       if (selected == null) {
         if (piece.isNotEmpty) {
-          if ((isWhiteTurn && piece.startsWith('w')) || 
+          if ((isWhiteTurn && piece.startsWith('w')) ||
               (!isWhiteTurn && piece.startsWith('b'))) {
             selected = Pair(row, col);
           }
@@ -118,18 +259,18 @@ class _ChessHomePageState extends State<ChessHomePage> {
       } else {
         final fromR = selected!.a;
         final fromC = selected!.b;
-        
+
         if (fromR == row && fromC == col) {
           selected = null;
         } else if (_isValidMove(fromR, fromC, row, col)) {
           board[row][col] = board[fromR][fromC];
           board[fromR][fromC] = '';
           selected = null;
-          
+
           isWhiteTurn = !isWhiteTurn;
           gameStatus = isWhiteTurn ? "White's turn" : "Black's turn";
           _updateEvaluation();
-          
+
           if (!isWhiteTurn) {
             _getEngineMove();
           }
@@ -144,7 +285,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
       final fenPointer = fen.toNativeUtf8().cast<ffi.Char>();
       final eval = evaluatePosition(fenPointer);
       malloc.free(fenPointer);
-      
+
       setState(() {
         currentEval = eval.toDouble();
       });
@@ -174,7 +315,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
       if (emptyCount > 0) rowStr += '$emptyCount';
       rows.add(rowStr);
     }
-    
+
     final turnChar = isWhiteTurn ? 'w' : 'b';
     return '${rows.join('/')} $turnChar - - 0 1';
   }
@@ -183,16 +324,14 @@ class _ChessHomePageState extends State<ChessHomePage> {
     if (code.isEmpty) return '';
     final color = code[0];
     final t = code[1];
-    final map = {
-      'p': 'p', 'n': 'n', 'b': 'b', 'r': 'r', 'q': 'q', 'k': 'k',
-    };
+    final map = {'p': 'p', 'n': 'n', 'b': 'b', 'r': 'r', 'q': 'q', 'k': 'k'};
     final ch = map[t] ?? '?';
     return color == 'w' ? ch.toUpperCase() : ch;
   }
 
   Future<void> _getEngineMove() async {
     if (isEngineThinking) return;
-    
+
     setState(() {
       isEngineThinking = true;
       gameStatus = "Engine thinking...";
@@ -202,17 +341,16 @@ class _ChessHomePageState extends State<ChessHomePage> {
       final fen = boardToFen();
       final fenPointer = fen.toNativeUtf8().cast<ffi.Char>();
       malloc.free(fenPointer);
-      
+
       //_applyEngineMove(moveString);
-      
+
       setState(() {
         isEngineThinking = false;
         isWhiteTurn = true;
         gameStatus = "White's turn";
       });
-      
+
       _updateEvaluation();
-      
     } catch (e) {
       setState(() {
         isEngineThinking = false;
@@ -229,7 +367,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
         final fromRank = 8 - int.parse(move[1]);
         final toFile = move[2].codeUnitAt(0) - 'a'.codeUnitAt(0);
         final toRank = 8 - int.parse(move[3]);
-        
+
         setState(() {
           board[toRank][toFile] = board[fromRank][fromFile];
           board[fromRank][fromFile] = '';
@@ -243,7 +381,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
   Widget _buildEvaluationBar() {
     double percentage = (currentEval + 1000) / 2000;
     percentage = percentage.clamp(0.0, 1.0);
-    
+
     Color barColor;
     if (currentEval > 200) {
       barColor = Colors.green[400]!;
@@ -331,23 +469,27 @@ class _ChessHomePageState extends State<ChessHomePage> {
             ),
           IconButton(
             tooltip: 'Reset Board',
-            onPressed: isEngineThinking ? null : () {
-              setState(() {
-                board = _initialBoard();
-                selected = null;
-                isWhiteTurn = true;
-                currentEval = 0.0;
-                gameStatus = "White's turn";
-              });
-              _updateEvaluation();
-            },
+            onPressed: isEngineThinking
+                ? null
+                : () {
+                    setState(() {
+                      board = _initialBoard();
+                      selected = null;
+                      isWhiteTurn = true;
+                      currentEval = 0.0;
+                      gameStatus = "White's turn";
+                    });
+                    _updateEvaluation();
+                  },
             icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 1200), // Limit overall width
+          constraints: const BoxConstraints(
+            maxWidth: 1200,
+          ), // Limit overall width
           padding: const EdgeInsets.all(20.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -355,7 +497,9 @@ class _ChessHomePageState extends State<ChessHomePage> {
             children: [
               // Chess Board
               Container(
-                constraints: const BoxConstraints(maxWidth: 600), // Limit board size
+                constraints: const BoxConstraints(
+                  maxWidth: 600,
+                ), // Limit board size
                 child: AspectRatio(
                   aspectRatio: 1.0,
                   child: Container(
@@ -374,9 +518,10 @@ class _ChessHomePageState extends State<ChessHomePage> {
                       borderRadius: BorderRadius.circular(6),
                       child: GridView.builder(
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 8,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 8,
+                            ),
                         itemCount: 64,
                         itemBuilder: (context, index) {
                           final row = index ~/ 8;
@@ -384,20 +529,23 @@ class _ChessHomePageState extends State<ChessHomePage> {
                           final isLight = (row + col) % 2 == 0;
                           final piece = board[row][col];
 
-                          final isSelected = selected != null &&
+                          final isSelected =
+                              selected != null &&
                               selected!.a == row &&
                               selected!.b == col;
 
                           // Add coordinates
-                          final showCoordinate = (row == 7 && col == 0) || 
-                                               (row == 0 && col == 7);
+                          final showCoordinate =
+                              (row == 7 && col == 0) || (row == 0 && col == 7);
 
                           return GestureDetector(
                             onTap: () => _onTapSquare(row, col),
                             child: Container(
                               color: isSelected
                                   ? Colors.blue[400]!.withOpacity(0.7)
-                                  : (isLight ? Colors.brown[100] : Colors.brown[700]),
+                                  : (isLight
+                                        ? Colors.brown[100]
+                                        : Colors.brown[700]),
                               child: Stack(
                                 children: [
                                   if (showCoordinate)
@@ -410,7 +558,9 @@ class _ChessHomePageState extends State<ChessHomePage> {
                                         _getCoordinateLabel(row, col),
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: isLight ? Colors.brown[800] : Colors.brown[100],
+                                          color: isLight
+                                              ? Colors.brown[800]
+                                              : Colors.brown[100],
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -433,9 +583,9 @@ class _ChessHomePageState extends State<ChessHomePage> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(width: 40),
-              
+
               // Evaluation and Controls
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -443,7 +593,10 @@ class _ChessHomePageState extends State<ChessHomePage> {
                   _buildEvaluationBar(),
                   const SizedBox(height: 20),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
@@ -454,8 +607,11 @@ class _ChessHomePageState extends State<ChessHomePage> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: currentEval > 0 ? Colors.green[700] : 
-                               currentEval < 0 ? Colors.red[700] : Colors.grey[700],
+                        color: currentEval > 0
+                            ? Colors.green[700]
+                            : currentEval < 0
+                            ? Colors.red[700]
+                            : Colors.grey[700],
                       ),
                     ),
                   ),
@@ -465,20 +621,25 @@ class _ChessHomePageState extends State<ChessHomePage> {
                     icon: const Icon(Icons.psychology),
                     label: const Text('Engine Move'),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 15),
                   OutlinedButton.icon(
-                    onPressed: isEngineThinking ? null : () {
-                      final fen = boardToFen();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: SelectableText('FEN: $fen'),
-                          duration: const Duration(seconds: 5),
-                        ),
-                      );
-                    },
+                    onPressed: isEngineThinking
+                        ? null
+                        : () {
+                            final fen = boardToFen();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: SelectableText('FEN: $fen'),
+                                duration: const Duration(seconds: 5),
+                              ),
+                            );
+                          },
                     icon: const Icon(Icons.copy_all),
                     label: const Text('Copy FEN'),
                   ),
@@ -498,10 +659,4 @@ class _ChessHomePageState extends State<ChessHomePage> {
     if (col == 7) return '${8 - row}';
     return '';
   }
-}
-
-class Pair<A, B> {
-  final A a;
-  final B b;
-  Pair(this.a, this.b);
 }
