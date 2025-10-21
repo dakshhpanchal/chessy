@@ -35,6 +35,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
   double currentEval = 0.0;
   bool isEngineThinking = false;
   String gameStatus = "White's turn";
+  List<Pair<int, int>> validMoves = [];
 
   // Chess engine FFI
   late ffi.DynamicLibrary dylib;
@@ -113,12 +114,10 @@ class _ChessHomePageState extends State<ChessHomePage> {
     final targetPiece = board[toR][toC];
 
     if (fromC == toC) {
-      //one square forward
       if (toR == fromR + direction && targetPiece.isEmpty) {
         return true;
       }
 
-      // two square forward
       if (fromR == startRow &&
           toR == fromR + 2 * direction &&
           targetPiece.isEmpty &&
@@ -243,6 +242,22 @@ class _ChessHomePageState extends State<ChessHomePage> {
     }
   }
 
+  List<Pair<int, int>> _getValidMoves(int row, int col) {
+    final moves = <Pair<int, int>>[];
+    for (var r = 0; r < 8; r++) {
+      for (var c = 0; c < 8; c++) {
+        if (_isValidMove(row, col, r, c)) {
+          moves.add(Pair(r, c));
+        }
+      }
+    }
+    return moves;
+  }
+
+  bool _isValidMoveTarget(int row, int col) {
+    return validMoves.any((move) => move.a == row && move.b == col);
+  }
+
   void _onTapSquare(int row, int col) {
     if (isEngineThinking) return;
 
@@ -254,6 +269,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
           if ((isWhiteTurn && piece.startsWith('w')) ||
               (!isWhiteTurn && piece.startsWith('b'))) {
             selected = Pair(row, col);
+            validMoves = _getValidMoves(row, col);
           }
         }
       } else {
@@ -262,10 +278,17 @@ class _ChessHomePageState extends State<ChessHomePage> {
 
         if (fromR == row && fromC == col) {
           selected = null;
+          validMoves = [];
+        } else if (piece.isNotEmpty &&
+            ((isWhiteTurn && piece.startsWith('w')) ||
+                (!isWhiteTurn && piece.startsWith('b')))) {
+          selected = Pair(row, col);
+          validMoves = _getValidMoves(row, col);
         } else if (_isValidMove(fromR, fromC, row, col)) {
           board[row][col] = board[fromR][fromC];
           board[fromR][fromC] = '';
           selected = null;
+          validMoves = [];
 
           isWhiteTurn = !isWhiteTurn;
           gameStatus = isWhiteTurn ? "White's turn" : "Black's turn";
@@ -274,6 +297,9 @@ class _ChessHomePageState extends State<ChessHomePage> {
           if (!isWhiteTurn) {
             _getEngineMove();
           }
+        } else {
+          selected = null;
+          validMoves = [];
         }
       }
     });
@@ -282,20 +308,20 @@ class _ChessHomePageState extends State<ChessHomePage> {
   Future<void> _updateEvaluation() async {
     try {
       final fen = boardToFen();
-      debugPrint('Sending FEN to engine: $fen'); // Debug print
-      
+      debugPrint('Sending FEN to engine: $fen');
+
       final fenPointer = fen.toNativeUtf8().cast<ffi.Char>();
       final eval = evaluatePosition(fenPointer);
       malloc.free(fenPointer);
 
       setState(() {
-        currentEval = eval / 100.0; // Convert centipawns to pawns
-        debugPrint('Engine evaluation: $eval centipawns, $currentEval pawns'); // Debug print
+        currentEval = eval / 100.0;
+        debugPrint('Engine evaluation: $eval centipawns, $currentEval pawns');
       });
     } catch (e) {
       debugPrint('Evaluation error: $e');
       setState(() {
-        currentEval = 0.0; // Fallback to 0 on error
+        currentEval = 0.0;
       });
     }
   }
@@ -385,84 +411,98 @@ class _ChessHomePageState extends State<ChessHomePage> {
     }
   }
 
-Widget _buildEvaluationBar() {
-  // Convert evaluation to a visual position
-  // Range: -10 to +10 pawns, clamped for display
-  double clampedEval = currentEval.clamp(-10.0, 10.0);
-  double percentage = (clampedEval + 10.0) / 20.0; // Convert to 0-1 range
-  
-  Color barColor;
-  if (currentEval > 2.0) {
-    barColor = Colors.green[400]!;
-  } else if (currentEval > 0.5) {
-    barColor = Colors.lightGreen;
-  } else if (currentEval < -2.0) {
-    barColor = Colors.red[700]!;
-  } else if (currentEval < -0.5) {
-    barColor = Colors.red[400]!;
-  } else {
-    barColor = Colors.grey;
+  Widget _buildEvaluationBar() {
+    double clampedEval = currentEval.clamp(-10.0, 10.0);
+    double percentage = (clampedEval + 10.0) / 20.0;
+
+    Color barColor;
+    if (currentEval > 2.0) {
+      barColor = Colors.green[400]!;
+    } else if (currentEval > 0.5) {
+      barColor = Colors.lightGreen;
+    } else if (currentEval < -2.0) {
+      barColor = Colors.red[700]!;
+    } else if (currentEval < -0.5) {
+      barColor = Colors.red[400]!;
+    } else {
+      barColor = Colors.grey;
+    }
+
+    return Container(
+      width: 30,
+      height: 400,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade800),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(2, 2),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black, Colors.grey.shade700, Colors.white],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: percentage * 400,
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: barColor,
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: [
+                  BoxShadow(
+                    color: barColor.withOpacity(0.5),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Center(
+            child: Container(
+              height: 1,
+              width: double.infinity,
+              color: Colors.grey.withOpacity(0.6),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  return Container(
-    width: 30,
-    height: 400,
-    decoration: BoxDecoration(
-      border: Border.all(color: Colors.grey.shade800),
-      borderRadius: BorderRadius.circular(8),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.3),
-          blurRadius: 4,
-          offset: const Offset(2, 2),
+  Widget _buildMoveDot(bool isCapture) {
+    return Center(
+      child: Container(
+        width: isCapture ? 36 : 20,
+        height: isCapture ? 36 : 20,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isCapture ? Colors.transparent : Colors.green.withOpacity(0.3),
+          border: isCapture
+              ? Border.all(
+                  color: const Color.fromARGB(255, 231, 0, 0).withOpacity(0.6),
+                  width: 3,
+                )
+              : null,
         ),
-      ],
-    ),
-    child: Stack(
-      children: [
-        // Background gradient - white on top (black advantage), black on bottom (white advantage)
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black, Colors.grey.shade700, Colors.white],
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        // Evaluation indicator
-        Positioned(
-          left: 0,
-          right: 0,
-          top: percentage * 400, // Position based on evaluation
-          child: Container(
-            height: 6,
-            decoration: BoxDecoration(
-              color: barColor,
-              borderRadius: BorderRadius.circular(3),
-              boxShadow: [
-                BoxShadow(
-                  color: barColor.withOpacity(0.5),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Center line
-        Center(
-          child: Container(
-            height: 1,
-            width: double.infinity,
-            color: Colors.grey.withOpacity(0.6),
-          ),
-        ),
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -485,6 +525,7 @@ Widget _buildEvaluationBar() {
                     setState(() {
                       board = _initialBoard();
                       selected = null;
+                      validMoves = [];
                       isWhiteTurn = true;
                       currentEval = 0.0;
                       gameStatus = "White's turn";
@@ -497,9 +538,7 @@ Widget _buildEvaluationBar() {
       ),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(
-            maxWidth: 1200,
-          ), // Limit overall width
+          constraints: const BoxConstraints(maxWidth: 1200),
           padding: const EdgeInsets.all(20.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -507,9 +546,7 @@ Widget _buildEvaluationBar() {
             children: [
               // Chess Board
               Container(
-                constraints: const BoxConstraints(
-                  maxWidth: 600,
-                ), // Limit board size
+                constraints: const BoxConstraints(maxWidth: 600),
                 child: AspectRatio(
                   aspectRatio: 1.0,
                   child: Container(
@@ -544,21 +581,30 @@ Widget _buildEvaluationBar() {
                               selected!.a == row &&
                               selected!.b == col;
 
-                          // Add coordinates
-                          final showCoordinate =
-                              (row == 7 && col == 0) || (row == 0 && col == 7);
+                          final isValidMoveTarget = _isValidMoveTarget(
+                            row,
+                            col,
+                          );
+                          final isCapture =
+                              isValidMoveTarget && piece.isNotEmpty;
 
                           return GestureDetector(
                             onTap: () => _onTapSquare(row, col),
                             child: Container(
                               color: isSelected
                                   ? Colors.blue[400]!.withOpacity(0.7)
+                                  : isValidMoveTarget && isCapture
+                                  ? Colors.red.withOpacity(0.4)
                                   : (isLight
                                         ? Colors.brown[100]
                                         : Colors.brown[700]),
                               child: Stack(
                                 children: [
-                                  if (showCoordinate)
+                                  if (isValidMoveTarget && !isSelected)
+                                    _buildMoveDot(isCapture),
+
+                                  if ((row == 7 && col == 0) ||
+                                      (row == 0 && col == 7))
                                     Positioned(
                                       top: row == 7 ? 2 : null,
                                       bottom: row == 0 ? 2 : null,
@@ -575,6 +621,8 @@ Widget _buildEvaluationBar() {
                                         ),
                                       ),
                                     ),
+
+                                  // Chess piece
                                   Center(
                                     child: piece.isNotEmpty
                                         ? Image.asset(
@@ -602,29 +650,29 @@ Widget _buildEvaluationBar() {
                 children: [
                   _buildEvaluationBar(),
                   const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade400),
-                      ),
-                      child: Text(
-                        '${currentEval > 0 ? '+' : ''}${currentEval.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: currentEval > 0.5
-                              ? Colors.green[700]
-                              : currentEval < -0.5
-                                  ? Colors.red[700]
-                                  : Colors.grey[700],
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade400),
+                    ),
+                    child: Text(
+                      '${currentEval > 0 ? '+' : ''}${currentEval.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: currentEval > 0.5
+                            ? Colors.green[700]
+                            : currentEval < -0.5
+                            ? Colors.red[700]
+                            : Colors.grey[700],
                       ),
                     ),
+                  ),
                   const SizedBox(height: 30),
                   ElevatedButton.icon(
                     onPressed: isEngineThinking ? null : _getEngineMove,
@@ -663,9 +711,7 @@ Widget _buildEvaluationBar() {
   }
 
   String _getCoordinateLabel(int row, int col) {
-    // Files (columns) a-h
     if (row == 7) return String.fromCharCode('a'.codeUnitAt(0) + col);
-    // Ranks (rows) 1-8
     if (col == 7) return '${8 - row}';
     return '';
   }
