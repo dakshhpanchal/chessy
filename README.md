@@ -9,17 +9,17 @@ Chess board asset: https://sharechess.github.io/ <br>
 
 # Project structure 
 chess_project/
-├── engine/             # C++ core logic
-│   ├── include/        # Header files (Core.h, etc.)
-│   ├── src/            # Source files (Core.cpp, etc.)
-│   └── CMakeLists.txt  # Build configuration
-│
-├── app/                # Flutter frontend
-│   ├── lib/            # Dart source
-│   ├── pubspec.yaml    # Flutter project config
-│   └── ...             
-│
-└── README.md
+├── engine/             # C++ core logic <br>
+│   ├── include/        # Header files (Core.h, etc.) <br>
+│   ├── src/            # Source files (Core.cpp, etc.)<br>
+│   └── CMakeLists.txt  # Build configuration<br>
+│<br>
+├── app/                # Flutter frontend<br>
+│   ├── lib/            # Dart source<br>
+│   ├── pubspec.yaml    # Flutter project config<br>
+│   └── ...             <br>
+│<br>
+└── README.md<br>
 
 > [!WARNING]
 > YOU MAY NEED TO INSTALL SHARED FILE PRODUCED BY THE ENGINE ACCORDING TO YOUR RESPECTIVE PLATFORM AS OF NOW
