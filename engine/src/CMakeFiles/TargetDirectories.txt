@@ -1,3 +1,0 @@
-/home/soap/probes/chessy/engine/src/CMakeFiles/engine.dir
-/home/soap/probes/chessy/engine/src/CMakeFiles/edit_cache.dir
-/home/soap/probes/chessy/engine/src/CMakeFiles/rebuild_cache.dir
