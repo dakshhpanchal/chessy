@@ -282,15 +282,21 @@ class _ChessHomePageState extends State<ChessHomePage> {
   Future<void> _updateEvaluation() async {
     try {
       final fen = boardToFen();
+      debugPrint('Sending FEN to engine: $fen'); // Debug print
+      
       final fenPointer = fen.toNativeUtf8().cast<ffi.Char>();
       final eval = evaluatePosition(fenPointer);
       malloc.free(fenPointer);
 
       setState(() {
-        currentEval = eval.toDouble();
+        currentEval = eval / 100.0; // Convert centipawns to pawns
+        debugPrint('Engine evaluation: $eval centipawns, $currentEval pawns'); // Debug print
       });
     } catch (e) {
       debugPrint('Evaluation error: $e');
+      setState(() {
+        currentEval = 0.0; // Fallback to 0 on error
+      });
     }
   }
 
@@ -342,6 +348,7 @@ class _ChessHomePageState extends State<ChessHomePage> {
       final fenPointer = fen.toNativeUtf8().cast<ffi.Char>();
       malloc.free(fenPointer);
 
+      const String moveString = "e7e5";
       //_applyEngineMove(moveString);
 
       setState(() {
@@ -378,81 +385,84 @@ class _ChessHomePageState extends State<ChessHomePage> {
     }
   }
 
-  Widget _buildEvaluationBar() {
-    double percentage = (currentEval + 1000) / 2000;
-    percentage = percentage.clamp(0.0, 1.0);
-
-    Color barColor;
-    if (currentEval > 200) {
-      barColor = Colors.green[400]!;
-    } else if (currentEval > 50) {
-      barColor = Colors.lightGreen;
-    } else if (currentEval < -200) {
-      barColor = Colors.red[700]!;
-    } else if (currentEval < -50) {
-      barColor = Colors.red[400]!;
-    } else {
-      barColor = Colors.grey;
-    }
-
-    return Container(
-      width: 30,
-      height: 400, // Fixed height for PC
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade800),
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 4,
-            offset: const Offset(2, 2),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.white, Colors.grey.shade300, Colors.black],
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          // Evaluation indicator
-          Align(
-            alignment: Alignment(0, 1 - (percentage * 2 - 1)),
-            child: Container(
-              height: 6,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: barColor,
-                borderRadius: BorderRadius.circular(3),
-                boxShadow: [
-                  BoxShadow(
-                    color: barColor.withOpacity(0.5),
-                    blurRadius: 4,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Center line
-          Center(
-            child: Container(
-              height: 1,
-              width: double.infinity,
-              color: Colors.grey.withOpacity(0.6),
-            ),
-          ),
-        ],
-      ),
-    );
+Widget _buildEvaluationBar() {
+  // Convert evaluation to a visual position
+  // Range: -10 to +10 pawns, clamped for display
+  double clampedEval = currentEval.clamp(-10.0, 10.0);
+  double percentage = (clampedEval + 10.0) / 20.0; // Convert to 0-1 range
+  
+  Color barColor;
+  if (currentEval > 2.0) {
+    barColor = Colors.green[400]!;
+  } else if (currentEval > 0.5) {
+    barColor = Colors.lightGreen;
+  } else if (currentEval < -2.0) {
+    barColor = Colors.red[700]!;
+  } else if (currentEval < -0.5) {
+    barColor = Colors.red[400]!;
+  } else {
+    barColor = Colors.grey;
   }
+
+  return Container(
+    width: 30,
+    height: 400,
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.grey.shade800),
+      borderRadius: BorderRadius.circular(8),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.3),
+          blurRadius: 4,
+          offset: const Offset(2, 2),
+        ),
+      ],
+    ),
+    child: Stack(
+      children: [
+        // Background gradient - white on top (black advantage), black on bottom (white advantage)
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.black, Colors.grey.shade700, Colors.white],
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        // Evaluation indicator
+        Positioned(
+          left: 0,
+          right: 0,
+          top: percentage * 400, // Position based on evaluation
+          child: Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: barColor,
+              borderRadius: BorderRadius.circular(3),
+              boxShadow: [
+                BoxShadow(
+                  color: barColor.withOpacity(0.5),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Center line
+        Center(
+          child: Container(
+            height: 1,
+            width: double.infinity,
+            color: Colors.grey.withOpacity(0.6),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -592,29 +602,29 @@ class _ChessHomePageState extends State<ChessHomePage> {
                 children: [
                   _buildEvaluationBar(),
                   const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade400),
-                    ),
-                    child: Text(
-                      '${currentEval > 0 ? '+' : ''}${currentEval.toStringAsFixed(1)}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: currentEval > 0
-                            ? Colors.green[700]
-                            : currentEval < 0
-                            ? Colors.red[700]
-                            : Colors.grey[700],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade400),
+                      ),
+                      child: Text(
+                        '${currentEval > 0 ? '+' : ''}${currentEval.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: currentEval > 0.5
+                              ? Colors.green[700]
+                              : currentEval < -0.5
+                                  ? Colors.red[700]
+                                  : Colors.grey[700],
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 30),
                   ElevatedButton.icon(
                     onPressed: isEngineThinking ? null : _getEngineMove,
