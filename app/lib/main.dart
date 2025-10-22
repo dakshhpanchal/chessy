@@ -101,7 +101,6 @@ class _ChessHomePageState extends State<ChessHomePage> {
     ];
     for (final n in names) {
       final provider = AssetImage('assets/pieces/$n.png');
-      // ignore: use_build_context_synchronously
       await precacheImage(provider, context);
     }
   }
