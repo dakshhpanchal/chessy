@@ -3,6 +3,8 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../services/engine_loader.dart';
+import '../themes/theme_controller.dart';
+import 'package:provider/provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -37,16 +39,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      // Get the appropriate engine URL based on platform
       final engineUrl = _getEngineDownloadUrl();
-      
       final response = await http.get(Uri.parse(engineUrl));
+
       if (response.statusCode == 200) {
         final dir = await getApplicationSupportDirectory();
         final engineFile = File('${dir.path}/${_getEngineFileName()}');
         await engineFile.writeAsBytes(response.bodyBytes);
-        
-        // Verify the download
+
         if (await engineFile.exists()) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Engine downloaded successfully!')),
@@ -85,28 +85,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeController = context.watch<ThemeController>();
+    final isDark = themeController.isDark;
+
+    final fg = isDark ? Colors.white : Colors.black;
+    final bg = isDark ? Colors.black : Colors.white;
+
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text("SETTINGS"),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
-          const SizedBox(height: 20),
-          Center(
-            child: Icon(
-              Icons.settings,
-              size: 80,
-              color: Theme.of(context).primaryColor,
+          const SizedBox(height: 10),
+
+          // 🔥 THEME TOGGLE
+          _sectionTitle("Appearance"),
+          const SizedBox(height: 12),
+
+          GestureDetector(
+            onTap: () => themeController.toggleTheme(),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: fg, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  _toggleOption("LIGHT", !isDark, fg, bg),
+                  _toggleOption("DARK", isDark, fg, bg),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'Chess Engine',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
+
+          const SizedBox(height: 30),
+
+          // ⚙️ ENGINE
+          _sectionTitle("Engine"),
+          const SizedBox(height: 12),
+
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -115,73 +137,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Row(
                     children: [
                       Icon(
-                        _isEngineInstalled ? Icons.check_circle : Icons.error,
+                        _isEngineInstalled ? Icons.check : Icons.close,
                         color: _isEngineInstalled ? Colors.green : Colors.red,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           _isEngineInstalled
-                              ? 'Engine is installed and ready'
-                              : 'Engine not installed',
-                          style: const TextStyle(fontSize: 16),
+                              ? 'Engine ready'
+                              : 'Not installed',
                         ),
                       ),
                     ],
                   ),
+
                   if (_isDownloading) ...[
                     const SizedBox(height: 16),
                     LinearProgressIndicator(value: _downloadProgress),
-                    const SizedBox(height: 8),
-                    Text('Downloading... ${(_downloadProgress * 100).toInt()}%'),
                   ],
+
                   const SizedBox(height: 16),
-                  ElevatedButton.icon(
+
+                  TextButton(
                     onPressed: _isDownloading ? null : _downloadEngine,
-                    icon: const Icon(Icons.download),
-                    label: Text(_isEngineInstalled ? 'Reinstall Engine' : 'Install Engine'),
+                    child: Text(
+                      _isEngineInstalled ? "REINSTALL" : "INSTALL",
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'About',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
+
+          const SizedBox(height: 30),
+
+          // 📦 ABOUT
+          _sectionTitle("About"),
+          const SizedBox(height: 12),
+
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  const ListTile(
-                    leading: Icon(Icons.info),
-                    title: Text('Version'),
-                    subtitle: Text('1.0.0'),
-                  ),
-                  const Divider(),
-                  const ListTile(
-                    leading: Icon(Icons.update),
-                    title: Text('Last Updated'),
-                    subtitle: Text('December 2024'),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.code),
-                    title: const Text('Open Source'),
-                    subtitle: const Text('View on GitHub'),
-                    onTap: () {
-                      // Open GitHub link
-                    },
-                  ),
-                ],
-              ),
+            child: Column(
+              children: const [
+                ListTile(
+                  title: Text("Version"),
+                  subtitle: Text("1.0.0"),
+                ),
+                Divider(),
+                ListTile(
+                  title: Text("Last Updated"),
+                  subtitle: Text("March 2026"),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        letterSpacing: 2,
+      ),
+    );
+  }
+
+  Widget _toggleOption(String label, bool active, Color fg, Color bg) {
+    return Expanded(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: active ? fg : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? bg : fg,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ),
     );
   }
