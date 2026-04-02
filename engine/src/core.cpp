@@ -7,10 +7,8 @@ namespace engine {
         int score = 0;
         int boardIndex = 0;
         int material = 0;
-        
         for (size_t i = 0; i < fen.length() && fen[i] != ' '; i++) {
             char c = fen[i];
-            
             if (c == '/') {
                 continue;
             }
@@ -26,13 +24,10 @@ namespace engine {
                 boardIndex++;
             }
         }
-        
         GamePhase phase = getGamePhase(material);
-        
         boardIndex = 0;
         for (size_t i = 0; i < fen.length() && fen[i] != ' '; i++) {
             char c = fen[i];
-            
             if (c == '/') {
                 continue;
             }
@@ -44,9 +39,7 @@ namespace engine {
                 boardIndex++;
             }
         }
-        
         score += evaluatePawnStructure(fen);
-        
         return Core::normalize(score);
     }
 
@@ -58,11 +51,9 @@ namespace engine {
 
     int Core::getPieceSquareValue(char piece, int square, GamePhase phase) {
         int pstIndex = square;
-        
         if (std::islower(piece)) {
             pstIndex = 56 - (pstIndex & 0b111000) + (pstIndex & 0b111);
         }
-        
         int value = 0;
         switch(std::toupper(piece)) {
             case 'P': value = pstPawnMG[pstIndex]; break;
@@ -75,7 +66,6 @@ namespace engine {
                 break;
             default: value = 0;
         }
-        
         return std::islower(piece) ? -value : value;
     }
 
@@ -83,7 +73,6 @@ namespace engine {
         int pawnScore = 0;
         std::array<int, 8> whitePawns = {0};
         std::array<int, 8> blackPawns = {0};
-        
         int boardIndex = 0;
         for (size_t i = 0; i < fen.length() && fen[i] != ' '; i++) {
             char c = fen[i];
@@ -92,19 +81,15 @@ namespace engine {
                 boardIndex += (c - '0');
                 continue;
             }
-            
             int file = boardIndex % 8;
             if (c == 'P') whitePawns[file]++;
             else if (c == 'p') blackPawns[file]++;
-            
             boardIndex++;
         }
-        
         for (int file = 0; file < 8; file++) {
             if (whitePawns[file] > 1) pawnScore -= 20 * (whitePawns[file] - 1);
             if (blackPawns[file] > 1) pawnScore += 20 * (blackPawns[file] - 1);
         }
-        
         return pawnScore;
     }
 
